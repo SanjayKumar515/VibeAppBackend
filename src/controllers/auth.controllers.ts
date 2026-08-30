@@ -1,7 +1,7 @@
 import { Request, Response } from "express"
 import User from "../modals/User";
 import { generateToken } from "../utils/token";
-import { admin } from "../config/firebase";
+import { getAuth } from "firebase-admin/auth";
 
 export const verifyPhoneAuth = async (req: Request, res: Response): Promise<void> => {
     const { token } = req.body;
@@ -13,7 +13,7 @@ export const verifyPhoneAuth = async (req: Request, res: Response): Promise<void
 
     try {
         // Verify the Firebase ID token
-        const decodedToken = await admin.auth().verifyIdToken(token);
+        const decodedToken = await getAuth().verifyIdToken(token);
         const firebaseUid = decodedToken.uid;
         const phoneNumber = decodedToken.phone_number;
 
