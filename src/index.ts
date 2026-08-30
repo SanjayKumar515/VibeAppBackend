@@ -26,15 +26,21 @@ app.get("/",(req,res)=>{
 const PORT = process.env.PORT || 3000;
 const server  =  http.createServer(app);
 
-//listen to socket
+//listen to socket (Note: This will not work correctly in Vercel serverless environment)
 initializeSocket(server)
 
 connectDB().then(()=>{
     console.log("Database Connected");
-server.listen(PORT,()=>{
-   console.log("✅ Environment loaded, PORT =", process.env.PORT);   
-})
+    
+    // In Vercel, the app is exported and Vercel handles the listening.
+    // We only explicitly listen if we are running locally (not in Vercel).
+    if (process.env.NODE_ENV !== 'production') {
+        server.listen(PORT,()=>{
+           console.log("✅ Environment loaded, PORT =", process.env.PORT);   
+        })
+    }
 }).catch((error)=>{
     console.log("failed to start due to database connection error : ", error);
-    
 })
+
+export default app;
