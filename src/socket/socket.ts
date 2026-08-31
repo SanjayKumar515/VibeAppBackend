@@ -4,6 +4,7 @@ import {Server as SocketIOServer, Socket} from 'socket.io'
 import { registerUserEvents } from "./userEvents"
 import { registerChatEvents } from './chatEvents'
 import Conversation from '../modals/Conversation'
+import User from '../modals/User'
 
 
 
@@ -41,12 +42,19 @@ export function initializeSocket(server:any):SocketIOServer {
     const userId =  socket.data.userId;
     console.log(`user connected : ${userId}, username:${socket.data.name}`);
     
+    // Set user as online
+    try {
+        await User.findByIdAndUpdate(userId, { isOnline: true });
+        io.emit("userStatusChanged", { userId, isOnline: true });
+    } catch (error) {
+        console.log("Error updating online status:", error);
+    }
+    
     // register events
    registerChatEvents(io,socket);
    registerUserEvents(io,socket);
 
    //join all the conversations of user
-
    try {
     const conversations = await Conversation.find({
         participants: userId,
@@ -59,10 +67,16 @@ export function initializeSocket(server:any):SocketIOServer {
    console.log("error joining conversation rooms:", error);
    }
 
-    socket.on('disconnected', ()=>{
+    socket.on('disconnect', async ()=>{
         // user logs out
-       console.log(`user connected : ${userId}, username:${socket.data.name}`);
-        
+        try {
+            const lastSeen = new Date();
+            await User.findByIdAndUpdate(userId, { isOnline: false, lastSeen });
+            io.emit("userStatusChanged", { userId, isOnline: false, lastSeen });
+            console.log(`user disconnected : ${userId}, username:${socket.data.name}`);
+        } catch (error) {
+            console.log("Error updating offline status:", error);
+        }
     })
    })
 

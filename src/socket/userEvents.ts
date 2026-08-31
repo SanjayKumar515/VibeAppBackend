@@ -16,7 +16,7 @@ export function registerUserEvents( io: SocketIOServer, socket: Socket ) {
 
   socket.on(
     "updateProfile",
-    async ( data: { name?: string; avatar?: string } ) => {
+    async ( data: { name?: string; avatar?: string; about?: string } ) => {
       console.log( "updateProfile event:", data );
 
       const userId = socket.data.userId;
@@ -32,6 +32,7 @@ export function registerUserEvents( io: SocketIOServer, socket: Socket ) {
         const updateData = cleanUpdateData( {
           name: data.name,
           avatar: data.avatar,
+          about: data.about,
         } );
 
         const updatedUser = await User.findByIdAndUpdate(
@@ -85,6 +86,9 @@ export function registerUserEvents( io: SocketIOServer, socket: Socket ) {
         name: user.name,
         phoneNumber: user.phoneNumber,
         avatar: user.avatar || "",
+        about: user.about || "Hey there! I am using WhatsApp.",
+        isOnline: user.isOnline || false,
+        lastSeen: user.lastSeen || null,
       } ) )
 
        socket.emit( "getContacts", {

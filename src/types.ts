@@ -2,9 +2,14 @@ import { Document, Types } from "mongoose";
 
 export interface UserProps extends Document {
   phoneNumber: string;
-  firebaseUid: string;
+  fcmToken?: string;
+  otp?: string;
+  otpExpiresAt?: Date;
   name?: string;
   avatar?: string;
+  about?: string;
+  isOnline?: boolean;
+  lastSeen?: Date;
   created?: Date;
 }
 

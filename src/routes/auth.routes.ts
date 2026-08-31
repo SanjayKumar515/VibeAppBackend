@@ -1,9 +1,14 @@
 import { Router } from "express";
-import { verifyPhoneAuth } from "../controllers/auth.controllers";
+import { requestOtp, verifyOtp, editProfile } from "../controllers/auth.controllers";
+import { authMiddleware } from "../middleware/auth.middleware";
 
 const router = Router();
 
-// Replace separate login and register with a single verify endpoint
-router.post("/verify", verifyPhoneAuth);
+// FCM OTP Authentication
+router.post("/request-otp", requestOtp);
+router.post("/verify-otp", verifyOtp);
+
+// Edit profile route, protected by authMiddleware
+router.put("/profile", authMiddleware, editProfile);
 
 export default router;

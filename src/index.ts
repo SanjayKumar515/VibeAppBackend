@@ -43,4 +43,18 @@ connectDB().then(()=>{
     console.log("failed to start due to database connection error : ", error);
 })
 
+// 404 Handler for undefined routes
+app.use((req: express.Request, res: express.Response, next: express.NextFunction) => {
+    res.status(404).json({ success: false, msg: `Route not found: ${req.method} ${req.originalUrl}` });
+});
+
+// Global Error Handler to ensure JSON responses (catches body-parser SyntaxErrors, etc)
+app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
+    console.error("Express Error:", err.message);
+    res.status(err.status || 500).json({ 
+        success: false, 
+        msg: err.message || "Internal Server Error" 
+    });
+});
+
 export default app;

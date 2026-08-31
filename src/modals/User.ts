@@ -8,10 +8,14 @@ const UserSchema = new Schema<UserProps>({
     unique:true,
     trim:true
   },
-  firebaseUid:{
-    type:String,
-    required:true,
-    unique:true,
+  fcmToken: {
+    type: String,
+  },
+  otp: {
+    type: String,
+  },
+  otpExpiresAt: {
+    type: Date,
   },
   name:{
     type:String,
@@ -21,6 +25,17 @@ const UserSchema = new Schema<UserProps>({
    avatar:{
     type:String,
     default:""
+  },
+  about:{
+    type:String,
+    default:"Hey there! I am using WhatsApp."
+  },
+  isOnline:{
+    type:Boolean,
+    default:false
+  },
+  lastSeen:{
+    type:Date,
   },
    created:{
     type:String,
