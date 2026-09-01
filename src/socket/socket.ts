@@ -9,11 +9,18 @@ import User from "../modals/User";
 
 dotenv.config();
 
+// In-memory tracker for user sockets to support multiple connections per user
+// Key: userId, Value: Set of socketIds
+const userSockets = new Map<string, Set<string>>();
+
 export function initializeSocket(server: any): SocketIOServer {
   const io = new SocketIOServer(server, {
     cors: {
       origin: "*", //allow all rigins
     },
+    // Heartbeat/ping mechanism to keep connections alive and detect drops
+    pingInterval: 25000,
+    pingTimeout: 60000,
   }); // socket io server instance
 
   // auth middleware
@@ -42,18 +49,38 @@ export function initializeSocket(server: any): SocketIOServer {
   // when socket connects , register events
   io.on("connection", async (socket: Socket) => {
     const userId = socket.data.userId;
-    console.log(`user connected : ${userId}, username:${socket.data.name}`);
+    console.log(`user connected : ${userId} on socket ${socket.id}, username:${socket.data.name}`);
+
+    // Track this socket connection for the user
+    if (userSockets.has(userId)) {
+      // User is already logged in on another device!
+      const oldSockets = userSockets.get(userId);
+      if (oldSockets) {
+        for (const oldSocketId of oldSockets) {
+          const oldSocket = io.sockets.sockets.get(oldSocketId);
+          if (oldSocket) {
+            console.log(`Forcing logout on old socket ${oldSocketId} for user ${userId}`);
+            oldSocket.emit("forceLogout", { message: "You have been logged in on another device." });
+            oldSocket.disconnect(true);
+          }
+        }
+      }
+      userSockets.set(userId, new Set()); // Clear old ones
+    } else {
+      userSockets.set(userId, new Set());
+      
+      // This is the first active connection for this user, mark as online
+      try {
+        await User.findByIdAndUpdate(userId, { isOnline: true });
+        io.emit("userStatusChanged", { userId, isOnline: true });
+      } catch (error) {
+        console.log("Error updating online status:", error);
+      }
+    }
+    userSockets.get(userId)?.add(socket.id);
 
     // Join the user to their own personal room for direct signaling (e.g. calls)
     socket.join(userId);
-
-    // Set user as online
-    try {
-      await User.findByIdAndUpdate(userId, { isOnline: true });
-      io.emit("userStatusChanged", { userId, isOnline: true });
-    } catch (error) {
-      console.log("Error updating online status:", error);
-    }
 
     // register events
     registerChatEvents(io, socket);
@@ -74,16 +101,25 @@ export function initializeSocket(server: any): SocketIOServer {
     }
 
     socket.on("disconnect", async () => {
-      // user logs out
-      try {
-        const lastSeen = new Date();
-        await User.findByIdAndUpdate(userId, { isOnline: false, lastSeen });
-        io.emit("userStatusChanged", { userId, isOnline: false, lastSeen });
-        console.log(
-          `user disconnected : ${userId}, username:${socket.data.name}`,
-        );
-      } catch (error) {
-        console.log("Error updating offline status:", error);
+      // Remove this socket from the user's active sockets
+      const sockets = userSockets.get(userId);
+      if (sockets) {
+        sockets.delete(socket.id);
+        
+        // If the user has no more active sockets, mark them offline
+        if (sockets.size === 0) {
+          userSockets.delete(userId);
+          try {
+            const lastSeen = new Date();
+            await User.findByIdAndUpdate(userId, { isOnline: false, lastSeen });
+            io.emit("userStatusChanged", { userId, isOnline: false, lastSeen });
+            console.log(
+              `user completely disconnected : ${userId}, username:${socket.data.name}`,
+            );
+          } catch (error) {
+            console.log("Error updating offline status:", error);
+          }
+        }
       }
     });
   });

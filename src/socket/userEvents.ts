@@ -66,6 +66,45 @@ export function registerUserEvents( io: SocketIOServer, socket: Socket ) {
     }
   );
 
+  
+  socket.on("userOnline", async () => {
+    try {
+      const userId = socket.data.userId;
+      if (!userId) return;
+      await User.findByIdAndUpdate(userId, { isOnline: true });
+      io.emit("userStatusChanged", { userId, isOnline: true });
+    } catch (error) {
+      console.log("error userOnline:", error);
+    }
+  });
+
+  socket.on("userOffline", async () => {
+    try {
+      const userId = socket.data.userId;
+      if (!userId) return;
+      const lastSeen = new Date();
+      await User.findByIdAndUpdate(userId, { isOnline: false, lastSeen });
+      io.emit("userStatusChanged", { userId, isOnline: false, lastSeen });
+    } catch (error) {
+      console.log("error userOffline:", error);
+    }
+  });
+
+  socket.on("checkUserStatus", async (data) => {
+    try {
+      const user = await User.findById(data.userId).lean();
+      if (user) {
+        socket.emit("userStatusResult", {
+          userId: user._id.toString(),
+          isOnline: user.isOnline,
+          lastSeen: user.lastSeen
+        });
+      }
+    } catch (error) {
+      console.log("error checkUserStatus:", error);
+    }
+  });
+  
   socket.on( "getContacts", async () => {
     try {
       const currentUserId = socket.data.userId;

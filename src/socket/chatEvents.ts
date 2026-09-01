@@ -122,7 +122,9 @@ export function registerChatEvents(io: SocketIOServer, socket: Socket) {
                 conversationId:data.conversationId,
                 senderId: data.sender.id,
                 content:data.content,
-                attachement:data.attachement
+                attachement:data.attachement,
+                    audio:data.audio,
+                audio:data.audio
             });
 
              io.to(data.conversationId).emit("newMessage", {

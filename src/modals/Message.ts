@@ -14,6 +14,7 @@ const messageSchema = new mongoose.Schema({
     },
     content:String,
     attachement:String,
+    audio:String,
 },{
   timestamps:true
 })
