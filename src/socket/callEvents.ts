@@ -50,12 +50,15 @@ export function registerCallEvents(io: SocketIOServer, socket: Socket) {
   });
 
   // End a call (can be triggered by either party)
-  socket.on("endCall", (data: { targetUserId: string }) => {
+  socket.on("endCall", (data: { targetUserId?: string; to?: string }) => {
     try {
       // Notify the other party that the call has ended
-      io.to(data.targetUserId).emit("callEnded", {
+      const target = data.targetUserId || data.to;
+      if (target) {
+        io.to(target).emit("callEnded", {
         endedBy: socket.data.userId,
       });
+      }
     } catch (error) {
       console.log("Error in endCall:", error);
     }
@@ -71,6 +74,40 @@ export function registerCallEvents(io: SocketIOServer, socket: Socket) {
       });
     } catch (error) {
       console.log("Error in webrtcSignal:", error);
+    }
+  });
+
+  // Events emitted by frontend
+  socket.on("callUser", (data) => {
+    try {
+      io.to(data.userToCall).emit("incomingCall", {
+        from: data.from,
+        name: data.name,
+        avatar: data.avatar,
+        signal: data.signalData,
+      });
+    } catch (error) {
+      console.log("Error in callUser:", error);
+    }
+  });
+
+  socket.on("answerCall", (data) => {
+    try {
+      io.to(data.to).emit("callAccepted", {
+        signal: data.signal,
+      });
+    } catch (error) {
+      console.log("Error in answerCall:", error);
+    }
+  });
+
+  socket.on("iceCandidate", (data) => {
+    try {
+      io.to(data.to).emit("iceCandidate", {
+        candidate: data.candidate,
+      });
+    } catch (error) {
+      console.log("Error in iceCandidate:", error);
     }
   });
 }
