@@ -190,4 +190,16 @@ export function registerChatEvents(io: SocketIOServer, socket: Socket) {
             });
         }
     })
+
+    socket.on("typing", (data: { conversationId: string; userId: string }) => {
+        if (data.conversationId) {
+            socket.to(data.conversationId).emit("userTyping", data);
+        }
+    });
+
+    socket.on("stopTyping", (data: { conversationId: string; userId: string }) => {
+        if (data.conversationId) {
+            socket.to(data.conversationId).emit("userStopTyping", data);
+        }
+    });
 }
