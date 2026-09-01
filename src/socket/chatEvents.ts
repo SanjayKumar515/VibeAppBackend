@@ -123,7 +123,6 @@ export function registerChatEvents(io: SocketIOServer, socket: Socket) {
                 senderId: data.sender.id,
                 content:data.content,
                 attachement:data.attachement,
-                    audio:data.audio,
                 audio:data.audio
             });
 
