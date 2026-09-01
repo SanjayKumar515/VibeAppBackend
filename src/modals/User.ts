@@ -1,12 +1,12 @@
-import {Schema, model} from "mongoose";
-import {UserProps} from "../types"
+import { Schema, model } from "mongoose";
+import { UserProps } from "../types";
 
 const UserSchema = new Schema<UserProps>({
-  phoneNumber:{
-    type:String,
-    required:true,
-    unique:true,
-    trim:true
+  phoneNumber: {
+    type: String,
+    required: true,
+    unique: true,
+    trim: true,
   },
   fcmToken: {
     type: String,
@@ -17,30 +17,36 @@ const UserSchema = new Schema<UserProps>({
   otpExpiresAt: {
     type: Date,
   },
-  name:{
-    type:String,
-    default:""
+  name: {
+    type: String,
+    default: "",
   },
 
-   avatar:{
-    type:String,
-    default:""
+  avatar: {
+    type: String,
+    default: "",
   },
-  about:{
-    type:String,
-    default:"Hey there! I am using WhatsApp."
+  about: {
+    type: String,
+    default: "Hey there! I am using Vibe App.",
   },
-  isOnline:{
-    type:Boolean,
-    default:false
+  isOnline: {
+    type: Boolean,
+    default: false,
   },
-  lastSeen:{
-    type:Date,
+  lastSeen: {
+    type: Date,
   },
-   created:{
-    type:String,
-    default:Date.now
-  }
-})
+  created: {
+    type: String,
+    default: Date.now,
+  },
+  blockedUsers: [
+    {
+      type: Schema.Types.ObjectId,
+      ref: "User",
+    },
+  ],
+});
 
-export default model<UserProps>("User", UserSchema)
+export default model<UserProps>("User", UserSchema);

@@ -11,6 +11,7 @@ export interface UserProps extends Document {
   isOnline?: boolean;
   lastSeen?: Date;
   created?: Date;
+  blockedUsers?: Types.ObjectId[];
 }
 
 export interface ConversationProps extends Document {

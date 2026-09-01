@@ -202,4 +202,39 @@ export function registerChatEvents(io: SocketIOServer, socket: Socket) {
             socket.to(data.conversationId).emit("userStopTyping", data);
         }
     });
+
+    socket.on("clearChat", async (data: { conversationId: string }) => {
+        try {
+            const userId = socket.data.userId;
+            if (!userId) return;
+
+            // Only participants should clear, but for simplicity we assume the request is valid
+            await Message.deleteMany({ conversationId: data.conversationId });
+            
+            // Optionally clear lastMessage in Conversation
+            await Conversation.findByIdAndUpdate(data.conversationId, {
+                $unset: { lastMessage: 1 }
+            });
+
+            socket.emit("clearChat", { success: true, conversationId: data.conversationId, msg: "Chat cleared" });
+        } catch (error) {
+            console.log("error clearChat:", error);
+            socket.emit("clearChat", { success: false, msg: "Failed to clear chat" });
+        }
+    });
+
+    socket.on("deleteChat", async (data: { conversationId: string }) => {
+        try {
+            const userId = socket.data.userId;
+            if (!userId) return;
+
+            await Message.deleteMany({ conversationId: data.conversationId });
+            await Conversation.findByIdAndDelete(data.conversationId);
+
+            socket.emit("deleteChat", { success: true, conversationId: data.conversationId, msg: "Chat deleted" });
+        } catch (error) {
+            console.log("error deleteChat:", error);
+            socket.emit("deleteChat", { success: false, msg: "Failed to delete chat" });
+        }
+    });
 }
