@@ -1,6 +1,8 @@
 import { Server as SocketIOServer, Socket } from "socket.io";
 import User from "../modals/User";
 
+import Call from "../modals/Call";
+
 export function registerCallEvents(io: SocketIOServer, socket: Socket) {
   // Initiate a call
   socket.on("initiateCall", async (data: { targetUserId: string; type: "audio" | "video"; chatId?: string }) => {
@@ -10,14 +12,12 @@ export function registerCallEvents(io: SocketIOServer, socket: Socket) {
       
       if (!caller) return;
 
-      // Notify the target user about the incoming call
       io.to(data.targetUserId).emit("incomingCall", {
         callerId: callerId,
         caller: caller,
         type: data.type,
         chatId: data.chatId,
       });
-      
     } catch (error) {
       console.log("Error in initiateCall:", error);
     }
@@ -27,7 +27,6 @@ export function registerCallEvents(io: SocketIOServer, socket: Socket) {
   socket.on("acceptCall", (data: { callerId: string }) => {
     try {
       const responderId = socket.data.userId;
-      // Tell the caller that their call was accepted
       io.to(data.callerId).emit("callAccepted", {
         responderId: responderId,
       });
@@ -40,7 +39,6 @@ export function registerCallEvents(io: SocketIOServer, socket: Socket) {
   socket.on("rejectCall", (data: { callerId: string }) => {
     try {
       const responderId = socket.data.userId;
-      // Tell the caller that their call was rejected
       io.to(data.callerId).emit("callRejected", {
         responderId: responderId,
       });
@@ -50,14 +48,39 @@ export function registerCallEvents(io: SocketIOServer, socket: Socket) {
   });
 
   // End a call (can be triggered by either party)
-  socket.on("endCall", (data: { targetUserId?: string; to?: string }) => {
+  socket.on("endCall", async (data: { targetUserId?: string; to?: string }) => {
     try {
-      // Notify the other party that the call has ended
       const target = data.targetUserId || data.to;
+      const userId = socket.data.userId;
+
+      // Update call in DB
+      if (target && userId) {
+         // find the most recent ongoing call between these two
+         const recentCall = await Call.findOne({
+            $or: [
+              { callerId: userId, receiverId: target },
+              { callerId: target, receiverId: userId }
+            ],
+            status: "ongoing"
+         }).sort({ startTime: -1 });
+
+         if (recentCall) {
+            recentCall.endTime = new Date();
+            // Calculate duration in seconds
+            const durationInSeconds = Math.floor((recentCall.endTime.getTime() - recentCall.startTime.getTime()) / 1000);
+            recentCall.duration = durationInSeconds;
+            
+            // if duration is very small (e.g. < 2 seconds) or not answered, maybe missed/rejected, 
+            // but we'll mark it as completed here if it's ongoing
+            recentCall.status = "completed";
+            await recentCall.save();
+         }
+      }
+
       if (target) {
         io.to(target).emit("callEnded", {
-        endedBy: socket.data.userId,
-      });
+          endedBy: userId,
+        });
       }
     } catch (error) {
       console.log("Error in endCall:", error);
@@ -67,7 +90,6 @@ export function registerCallEvents(io: SocketIOServer, socket: Socket) {
   // WebRTC Signaling (Offer, Answer, ICE Candidates)
   socket.on("webrtcSignal", (data: { targetUserId: string; signal: any }) => {
     try {
-      // Forward the signaling data to the target user
       io.to(data.targetUserId).emit("webrtcSignal", {
         senderId: socket.data.userId,
         signal: data.signal,
@@ -78,21 +100,40 @@ export function registerCallEvents(io: SocketIOServer, socket: Socket) {
   });
 
   // Events emitted by frontend
-  socket.on("callUser", (data) => {
+  socket.on("callUser", async (data) => {
     try {
+      // Create new Call record
+      const type = data.type || "video"; // fallback to video if not provided
+      await Call.create({
+        callerId: data.from,
+        receiverId: data.userToCall,
+        type: type,
+        status: "ongoing", // starts as ongoing
+        startTime: new Date()
+      });
+
       io.to(data.userToCall).emit("incomingCall", {
         from: data.from,
         name: data.name,
         avatar: data.avatar,
         signal: data.signalData,
+        type: type,
       });
     } catch (error) {
       console.log("Error in callUser:", error);
     }
   });
 
-  socket.on("answerCall", (data) => {
+  socket.on("answerCall", async (data) => {
     try {
+      const userId = socket.data.userId;
+      const callerId = data.to; // The one who called us
+
+      if (userId && callerId) {
+         // We can optionally mark it as 'answered' or something here, 
+         // but status="ongoing" is already set when callUser was called.
+      }
+
       io.to(data.to).emit("callAccepted", {
         signal: data.signal,
       });
@@ -108,6 +149,29 @@ export function registerCallEvents(io: SocketIOServer, socket: Socket) {
       });
     } catch (error) {
       console.log("Error in iceCandidate:", error);
+    }
+  });
+
+  socket.on("getCallHistory", async () => {
+    try {
+      const userId = socket.data.userId;
+      if (!userId) {
+        socket.emit("getCallHistory", { success: false, msg: "User not authenticated" });
+        return;
+      }
+
+      const calls = await Call.find({
+        $or: [{ callerId: userId }, { receiverId: userId }],
+      })
+      .sort({ startTime: -1 })
+      .populate("callerId", "name avatar phoneNumber")
+      .populate("receiverId", "name avatar phoneNumber")
+      .lean();
+
+      socket.emit("getCallHistory", { success: true, data: calls });
+    } catch (error) {
+      console.log("Error in getCallHistory:", error);
+      socket.emit("getCallHistory", { success: false, msg: "Failed to fetch call history" });
     }
   });
 }
