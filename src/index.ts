@@ -4,6 +4,7 @@ import cors from "cors"
 import dotenv from "dotenv"
 import connectDB from "./config/db";
 import authRoutes from "./routes/auth.routes"
+import callHistoryRoutes from "./routes/callHistory.routes"
 import { initializeSocket } from "./socket/socket";
 import { initializeFirebase } from "./config/firebase";
 
@@ -18,6 +19,7 @@ app.use(express.json());
 app.use(cors());
 
 app.use("/auth",authRoutes)
+app.use("/api/call-history", callHistoryRoutes)
 
 app.get("/",(req,res)=>{
     res.send("Server is running")
