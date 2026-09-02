@@ -1,5 +1,6 @@
 import { Server as SocketIOServer, Socket } from "socket.io";
 import User from "../modals/User";
+import { getMessaging } from "firebase-admin/messaging";
 
 import Call from "../modals/Call";
 
@@ -116,9 +117,32 @@ export function registerCallEvents(io: SocketIOServer, socket: Socket) {
         from: data.from,
         name: data.name,
         avatar: data.avatar,
-        signal: data.signalData,
+                signal: data.signalData,
         type: type,
       });
+
+      // Send Push Notification
+      const targetUser = await User.findById(data.userToCall).select("fcmToken");
+      if (targetUser && targetUser.fcmToken) {
+        const message = {
+          data: {
+            type: 'INCOMING_CALL',
+            callerId: data.from,
+            callerName: data.name,
+            callerAvatar: data.avatar || '',
+            callType: type,
+          },
+          android: {
+            priority: 'high' as 'high',
+          },
+          token: targetUser.fcmToken
+        };
+        try {
+          await getMessaging().send(message);
+        } catch (fcmError) {
+          console.log("FCM send failed for call:", fcmError);
+        }
+      }
     } catch (error) {
       console.log("Error in callUser:", error);
     }
