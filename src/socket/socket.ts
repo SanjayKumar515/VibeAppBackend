@@ -21,6 +21,7 @@ export function initializeSocket(server: any): SocketIOServer {
     // Heartbeat/ping mechanism to keep connections alive and detect drops
     pingInterval: 25000,
     pingTimeout: 60000,
+    maxHttpBufferSize: 1e8, // 100 MB buffer for base64 images
   }); // socket io server instance
 
   // auth middleware
@@ -99,6 +100,18 @@ export function initializeSocket(server: any): SocketIOServer {
     } catch (error: any) {
       console.log("error joining conversation rooms:", error);
     }
+
+    
+    socket.on("updateFcmToken", async (fcmToken) => {
+      if (userId && fcmToken) {
+        try {
+          await User.findByIdAndUpdate(userId, { fcmToken });
+          console.log(`Updated FCM token for user ${userId}`);
+        } catch (e) {
+          console.log("Error updating FCM token", e);
+        }
+      }
+    });
 
     socket.on("disconnect", async () => {
       // Remove this socket from the user's active sockets

@@ -106,7 +106,7 @@ export function registerCallEvents(io: SocketIOServer, socket: Socket) {
       // Create new Call record
       const type = data.type || "video"; // fallback to video if not provided
       await Call.create({
-        callerId: data.from,
+        callerId: String(data.from || ''),
         receiverId: data.userToCall,
         type: type,
         status: "ongoing", // starts as ongoing
@@ -127,10 +127,11 @@ export function registerCallEvents(io: SocketIOServer, socket: Socket) {
         const message = {
           data: {
             type: 'INCOMING_CALL',
-            callerId: data.from,
-            callerName: data.name,
-            callerAvatar: data.avatar || '',
-            callType: type,
+            callerId: String(data.from || ''),
+            callerName: String(data.name || 'Unknown'),
+            callerAvatar: String(data.avatar || ''),
+            callType: String(type || 'video'),
+            signalData: JSON.stringify(data.signalData || {}),
           },
           android: {
             priority: 'high' as 'high',
