@@ -34,7 +34,12 @@ const ConversationSchema = new Schema<ConversationProps>({
     updatedAt:{
     type:Date,
     default:Date.now,
-   } 
+   },
+    unreadCounts: {
+      type: Map,
+      of: Number,
+      default: {}
+    }
 });
 
 ConversationSchema.pre("save",function(next){

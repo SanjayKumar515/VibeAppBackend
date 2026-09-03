@@ -1,6 +1,8 @@
 import { Server as SocketIOServer, Socket } from "socket.io";
 import Conversation from "../modals/Conversation";
 import Message from "../modals/Message";
+import User from "../modals/User";
+import { getMessaging } from "firebase-admin/messaging";
 
 
 export function registerChatEvents(io: SocketIOServer, socket: Socket) {
@@ -139,13 +141,59 @@ export function registerChatEvents(io: SocketIOServer, socket: Socket) {
                     attachement:data.attachement,
                     createdAt:new Date().toISOString(),
                     conversationId:data.conversationId,
+                    status: "sent",
+                    isEdited: false,
+                    isDeleted: false,
                 },
               });
             
-            // update conversation's last message
-           await Conversation.findByIdAndUpdate(data.conversationId,{
-            lastMessage:message._id,
-           }) 
+            // fetch conversation to update unreadCounts
+            const conversation = await Conversation.findById(data.conversationId);
+            if (conversation) {
+                conversation.lastMessage = message._id as any;
+                
+                const participants = conversation.participants.map(p => p.toString());
+                const recipients = participants.filter(p => p !== data.sender.id);
+
+                // Increment unread counts
+                if (!conversation.unreadCounts) {
+                    conversation.unreadCounts = new Map();
+                }
+                for (const recipientId of recipients) {
+                    const currentCount = conversation.unreadCounts.get(recipientId) || 0;
+                    conversation.unreadCounts.set(recipientId, currentCount + 1);
+                }
+                
+                await conversation.save();
+
+                // Send FCM Push notifications to recipients
+                const users = await User.find({ _id: { $in: recipients } });
+                for (const user of users) {
+                    if (user.fcmToken) {
+                        try {
+                            await getMessaging().send({
+                                token: user.fcmToken,
+                                data: {
+                                    type: "NEW_MESSAGE",
+                                    conversationId: String(data.conversationId),
+                                    senderName: String(data.sender.name),
+                                    content: String(data.content || (data.attachement ? "Sent an attachment" : "Sent a message")),
+                                },
+                                android: {
+                                    priority: 'high' as 'high',
+                                },
+                                apns: {
+                                    headers: {
+                                        'apns-priority': '10',
+                                    },
+                                },
+                            });
+                        } catch (pushErr) {
+                            console.log("Error sending new message push:", pushErr);
+                        }
+                    }
+                }
+            }
 
         } catch (error) {
             console.log("newMessage error:", error);
@@ -176,7 +224,10 @@ export function registerChatEvents(io: SocketIOServer, socket: Socket) {
                     id:message.senderId._id,
                     name:message.senderId.name,
                     avatar:message.senderId.avatar,
-                }
+                },
+                status: message.status || "sent",
+                isEdited: message.isEdited || false,
+                isDeleted: message.isDeleted || false,
             }))
             socket.emit("getMessages",{
                 success:true,
@@ -190,6 +241,97 @@ export function registerChatEvents(io: SocketIOServer, socket: Socket) {
             });
         }
     })
+
+    socket.on("messageDelivered", async (data: { messageId: string, conversationId: string }) => {
+        try {
+            await Message.updateOne(
+                { _id: data.messageId, status: "sent" },
+                { $set: { status: "delivered" } }
+            );
+            io.to(data.conversationId).emit("messagesDelivered", {
+                messageId: data.messageId,
+                conversationId: data.conversationId
+            });
+        } catch (error) {
+            console.log("error messageDelivered:", error);
+        }
+    });
+
+    
+    socket.on("editMessage", async (data: { messageId: string, content: string, conversationId: string }) => {
+        try {
+            const userId = socket.data.userId;
+            if (!userId) return;
+
+            const message = await Message.findOne({ _id: data.messageId, senderId: userId });
+            if (message && !message.isDeleted) {
+                message.content = data.content;
+                message.isEdited = true;
+                await message.save();
+
+                io.to(data.conversationId).emit("messageEdited", {
+                    messageId: data.messageId,
+                    content: data.content,
+                    conversationId: data.conversationId
+                });
+            }
+        } catch (error) {
+            console.log("error editMessage:", error);
+        }
+    });
+
+    socket.on("deleteMessage", async (data: { messageId: string, conversationId: string }) => {
+        try {
+            const userId = socket.data.userId;
+            if (!userId) return;
+
+            const message = await Message.findOne({ _id: data.messageId, senderId: userId });
+            if (message && !message.isDeleted) {
+                message.content = "🚫 This message was deleted";
+                message.isDeleted = true;
+                message.attachement = "";
+                message.audio = "";
+                await message.save();
+
+                io.to(data.conversationId).emit("messageDeleted", {
+                    messageId: data.messageId,
+                    conversationId: data.conversationId
+                });
+            }
+        } catch (error) {
+            console.log("error deleteMessage:", error);
+        }
+    });
+
+    socket.on("markAsRead", async (data: { conversationId: string }) => {
+        try {
+            const userId = socket.data.userId;
+            if (!userId || !data.conversationId) return;
+
+            const conversation = await Conversation.findById(data.conversationId);
+            if (conversation) {
+                if (!conversation.unreadCounts) {
+                    conversation.unreadCounts = new Map();
+                }
+                conversation.unreadCounts.set(userId, 0);
+                await conversation.save();
+
+                const mongoose = require('mongoose');
+                const updateRes = await Message.updateMany(
+                    { conversationId: data.conversationId, senderId: { $ne: new mongoose.Types.ObjectId(userId) }, status: { $ne: "read" } },
+                    { $set: { status: "read" } }
+                );
+                console.log("markAsRead updateRes:", updateRes);
+                
+                io.to(data.conversationId).emit("messagesRead", {
+                    conversationId: data.conversationId,
+                    readerId: userId
+                });
+            }
+        } catch (error) {
+            console.log("error markAsRead:", error);
+        }
+    });
 
     socket.on("typing", (data: { conversationId: string; userId: string }) => {
         if (data.conversationId) {

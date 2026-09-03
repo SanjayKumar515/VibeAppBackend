@@ -4,6 +4,9 @@ import { getMessaging } from "firebase-admin/messaging";
 
 import Call from "../modals/Call";
 
+// Memory store to cache ICE candidates that might be dropped before the receiver connects
+const callIceCandidates = new Map<string, any[]>();
+
 export function registerCallEvents(io: SocketIOServer, socket: Socket) {
   // Initiate a call
   socket.on("initiateCall", async (data: { targetUserId: string; type: "audio" | "video"; chatId?: string }) => {
@@ -56,6 +59,10 @@ export function registerCallEvents(io: SocketIOServer, socket: Socket) {
 
       // Update call in DB
       if (target && userId) {
+         // Clear cached ICE candidates
+         callIceCandidates.delete(`${userId}-${target}`);
+         callIceCandidates.delete(`${target}-${userId}`);
+
          // find the most recent ongoing call between these two
          const recentCall = await Call.findOne({
             $or: [
@@ -95,6 +102,26 @@ export function registerCallEvents(io: SocketIOServer, socket: Socket) {
         senderId: socket.data.userId,
         signal: data.signal,
       });
+
+      // If the caller just sent their offer, resend any cached ICE candidates
+      // that the receiver might have missed while their screen was loading
+      if (data.signal && data.signal.type === "offer") {
+        const key = `${socket.data.userId}-${data.targetUserId}`;
+        const candidates = callIceCandidates.get(key);
+        if (candidates && candidates.length > 0) {
+          // Delay slightly to ensure remoteDescription is set first on the receiver
+          setTimeout(() => {
+            candidates.forEach(cand => {
+              io.to(data.targetUserId).emit("iceCandidate", {
+                candidate: cand,
+                from: socket.data.userId,
+              });
+            });
+            // Clear after sending
+            callIceCandidates.delete(key);
+          }, 1500);
+        }
+      }
     } catch (error) {
       console.log("Error in webrtcSignal:", error);
     }
@@ -169,8 +196,15 @@ export function registerCallEvents(io: SocketIOServer, socket: Socket) {
 
   socket.on("iceCandidate", (data) => {
     try {
+      const key = `${socket.data.userId}-${data.to}`;
+      if (!callIceCandidates.has(key)) {
+        callIceCandidates.set(key, []);
+      }
+      callIceCandidates.get(key)!.push(data.candidate);
+
       io.to(data.to).emit("iceCandidate", {
         candidate: data.candidate,
+        from: socket.data.userId,
       });
     } catch (error) {
       console.log("Error in iceCandidate:", error);

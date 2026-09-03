@@ -24,4 +24,5 @@ export interface ConversationProps extends Document {
   avatar?: string;
   createdAt: Date;
   updatedAt: Date;
+  unreadCounts?: Map<string, number>;
 }
