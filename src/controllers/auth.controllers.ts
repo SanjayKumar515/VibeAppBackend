@@ -152,7 +152,14 @@ export const editProfile = async (req: any, res: Response): Promise<void> => {
     try {
         const updateData: any = {};
         if (name !== undefined) updateData.name = typeof name === 'string' ? name.trim() : name;
-        if (avatar !== undefined) updateData.avatar = avatar;
+        if (avatar !== undefined) {
+            // Guard: never save local device file paths in backend database
+            if (typeof avatar === 'string' && (avatar.startsWith('file://') || avatar.startsWith('/storage/'))) {
+                updateData.avatar = '';
+            } else {
+                updateData.avatar = avatar;
+            }
+        }
         if (about !== undefined) updateData.about = typeof about === 'string' ? about.trim() : about;
 
         const updatedUser = await User.findByIdAndUpdate(
