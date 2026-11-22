@@ -10,3 +10,4 @@ router.post("/upload", uploadMedia);
 router.get("/:id", getMedia);
 
 export default router;
+

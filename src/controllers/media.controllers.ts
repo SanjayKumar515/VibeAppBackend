@@ -71,3 +71,4 @@ export const getMedia = async (req: Request, res: Response): Promise<void> => {
     res.status(500).json({ success: false, msg: "Server error" });
   }
 };
+
