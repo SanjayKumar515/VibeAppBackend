@@ -107,6 +107,38 @@ export const verifyOtp = async (req: Request, res: Response): Promise<void> => {
     }
 }
 
+export const getProfile = async (req: any, res: Response): Promise<void> => {
+    const userId = req.user?.id || req.user?._id;
+
+    if (!userId) {
+        res.status(401).json({ success: false, msg: "Unauthorized" });
+        return;
+    }
+
+    try {
+        const user = await User.findById(userId);
+
+        if (!user) {
+            res.status(404).json({ success: false, msg: "User not found" });
+            return;
+        }
+
+        res.json({
+            success: true,
+            user: {
+                id: user._id,
+                name: user.name,
+                phoneNumber: user.phoneNumber,
+                avatar: user.avatar || "",
+                about: user.about || "Hey there! I am using Vibe App.",
+            }
+        });
+    } catch (error) {
+        console.log("Get profile error", error);
+        res.status(500).json({ success: false, msg: "Server Error" });
+    }
+};
+
 export const editProfile = async (req: any, res: Response): Promise<void> => {
     // using any for req to avoid import conflicts, or we can use the AuthRequest
     const userId = req.user?.id || req.user?._id;
