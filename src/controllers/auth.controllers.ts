@@ -109,13 +109,19 @@ export const verifyOtp = async (req: Request, res: Response): Promise<void> => {
 
 export const editProfile = async (req: any, res: Response): Promise<void> => {
     // using any for req to avoid import conflicts, or we can use the AuthRequest
-    const userId = req.user.id;
-    const { name, avatar } = req.body;
+    const userId = req.user?.id || req.user?._id;
+    const { name, avatar, about } = req.body;
+
+    if (!userId) {
+        res.status(401).json({ success: false, msg: "Unauthorized" });
+        return;
+    }
 
     try {
         const updateData: any = {};
-        if (name !== undefined) updateData.name = name;
+        if (name !== undefined) updateData.name = typeof name === 'string' ? name.trim() : name;
         if (avatar !== undefined) updateData.avatar = avatar;
+        if (about !== undefined) updateData.about = typeof about === 'string' ? about.trim() : about;
 
         const updatedUser = await User.findByIdAndUpdate(
             userId,
@@ -140,6 +146,7 @@ export const editProfile = async (req: any, res: Response): Promise<void> => {
                 name: updatedUser.name,
                 phoneNumber: updatedUser.phoneNumber,
                 avatar: updatedUser.avatar,
+                about: updatedUser.about,
             }
         });
     } catch (error) {

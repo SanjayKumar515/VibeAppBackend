@@ -19,7 +19,7 @@ export function registerUserEvents(io: SocketIOServer, socket: Socket) {
     async (data: { name?: string; avatar?: string; about?: string }) => {
       console.log("updateProfile event:", data);
 
-      const userId = socket.data.userId;
+      const userId = socket.data?.userId || socket.data?.id;
       if (!userId) {
         return socket.emit("updateProfile", {
           success: false,
