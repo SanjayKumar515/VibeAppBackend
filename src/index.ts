@@ -6,6 +6,7 @@ import connectDB from "./config/db";
 import authRoutes from "./routes/auth.routes"
 import callHistoryRoutes from "./routes/callHistory.routes"
 import statusRoutes from "./routes/status.routes"
+import mediaRoutes from "./routes/media.routes"
 import { initializeSocket } from "./socket/socket";
 import { initializeFirebase } from "./config/firebase";
 
@@ -22,6 +23,7 @@ app.use(cors());
 app.use("/auth",authRoutes)
 app.use("/api/call-history", callHistoryRoutes)
 app.use("/api/status", statusRoutes)
+app.use("/api/media", mediaRoutes)
 
 app.get("/",(req,res)=>{
     res.send("Server is running")
