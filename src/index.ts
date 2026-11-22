@@ -36,16 +36,12 @@ initializeSocket(server)
 connectDB().then(()=>{
     console.log("Database Connected");
     
-    // In Vercel, the app is exported and Vercel handles the listening.
-    // We only explicitly listen if we are running locally (not in Vercel).
-    if (process.env.NODE_ENV !== 'production') {
-        server.listen(PORT,()=>{
-           console.log("✅ Environment loaded, PORT =", process.env.PORT);   
-        })
-    }
+    server.listen(PORT,()=>{
+       console.log("✅ Server is listening on PORT =", PORT);   
+    });
 }).catch((error)=>{
     console.log("failed to start due to database connection error : ", error);
-})
+});
 
 // 404 Handler for undefined routes
 app.use((req: express.Request, res: express.Response, next: express.NextFunction) => {
